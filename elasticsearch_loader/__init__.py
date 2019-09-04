@@ -25,7 +25,7 @@ def single_bulk_to_es(bulk, config, attempt_retry):
 
     for attempt in range(1, max_attempt + 1):
         try:
-            helpers.bulk(config['es_conn'], bulk, chunk_size=config['bulk_size'])
+            helpers.parallel_bulk(config['es_conn'], bulk, thread_count=config['threads'], chunk_size=config['bulk_size'])
         except Exception as e:
             if attempt < max_attempt:
                 wait_seconds = attempt * 3
@@ -68,7 +68,10 @@ def log(sevirity, msg):
 @click.group(invoke_without_command=True, context_settings={"help_option_names": ['-h', '--help']})
 @conf(default='esl.yml')
 @click.option('--bulk-size', default=500, help='How many docs to collect before writing to Elasticsearch (default 500)')
+@click.option('--threads', default=1, help='How many threads to use to send data to elasticsearch. (default 1)')
 @click.option('--es-host', default='http://localhost:9200', help='Elasticsearch cluster entry point. (default http://localhost:9200)', envvar='ES_HOST')
+@click.option('--sniff-on-start', default=False, is_flag=True, help='Sniff for available elasticsearch nodes')
+@click.option('--sniff-on-connection-fail', default=False, is_flag=True, help='Sniff for new nodes if connection fails')
 @click.option('--verify-certs', default=False, is_flag=True, help='Make sure we verify SSL certificates (default false)')
 @click.option('--use-ssl', default=False, is_flag=True, help='Turn on SSL (default false)')
 @click.option('--ca-certs', help='Provide a path to CA certs on disk')
@@ -90,7 +93,7 @@ def log(sevirity, msg):
 @click.pass_context
 def cli(ctx, **opts):
     ctx.obj = opts
-    es_opts = {x: y for x, y in opts.items() if x in ('timeout', 'use_ssl', 'ca_certs', 'verify_certs', 'http_auth')}
+    es_opts = {x: y for x, y in opts.items() if x in ('timeout', 'use_ssl', 'ca_certs', 'verify_certs', 'http_auth', 'sniff_on_start', 'sniff_on_connection_fail')}
     ctx.obj['es_conn'] = Elasticsearch(opts['es_host'], **es_opts)
     if opts['delete']:
         try:
